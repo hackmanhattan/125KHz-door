@@ -3,7 +3,7 @@ import signal, requests
 from sys import exit
 from json import load as jsondb
 from time import sleep, time
-from platform import machine
+from platform import machine, platform
 
 class Dummy(object):
     def __init__(self, name):
@@ -15,16 +15,22 @@ class Dummy(object):
         return lambda *args: print("{}.{}: {}"
                                    .format(self.name, attr,repr(args)))
 
-if machine().startswith("arm"):
-    import RPi.GPIO as GPIO
-else:
-    GPIO = Dummy("GPIO")
-
 PINS = {
     "door": 7,
     "green": 8,
     "red": 10
 }
+
+GPIO = Dummy("GPIO")
+
+if machine().startswith("arm") and "ntc" in platform():
+    import CHIP_IO.GPIO as GPIO
+    PINS = {"door": "CSID0",
+            "green": "CSID1",
+            "red": "CSID2"}
+elif machine().startswith("arm"):
+    import RPi.GPIO as GPIO
+    GPIO.setmode(GPIO.BOARD)
 
 def quit(signum, frame):
     GPIO.cleanup()
@@ -57,7 +63,8 @@ def sesame(decision):
     if decision:
         print("Granted")
         for value in (GPIO.HIGH, GPIO.LOW):
-            GPIO.output([PINS["door"], PINS["green"]], value)
+            GPIO.output(PINS["door"], value)
+            GPIO.output(PINS["green"], value)
             if value:
                 sleep(3)
     else:
@@ -67,10 +74,10 @@ def sesame(decision):
             if value:
                 sleep(3)
 
-GPIO.setmode(GPIO.BOARD)
 signal.signal(signal.SIGINT, quit)
 
-GPIO.setup(list(PINS.values()), GPIO.OUT)
+for value in PINS.values():
+    GPIO.setup(value, GPIO.OUT)
 
 attempt = 0
 
@@ -78,7 +85,7 @@ while True:
     cuid = input()
 
     # Make sure we discard attempts
-    now = time() 
+    now = time()
     if now - attempt > 6:
         sesame(len(cuid) == 10 and cuid.isdigit() and hasAccess(cuid))
         attempt = now
