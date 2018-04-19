@@ -4,6 +4,7 @@ from sys import exit
 from json import load as jsondb
 from time import sleep, time
 from platform import machine, platform
+from threading import Thread
 
 class Dummy(object):
     def __init__(self, name):
@@ -18,7 +19,8 @@ class Dummy(object):
 PINS = {
     "door": 7,
     "green": 8,
-    "red": 10
+    "red": 10,
+    "key": 11
 }
 
 GPIO = Dummy("GPIO")
@@ -27,7 +29,8 @@ if machine().startswith("arm") and "ntc" in platform():
     import CHIP_IO.GPIO as GPIO
     PINS = {"door": "CSID0",
             "green": "CSID1",
-            "red": "CSID2"}
+            "red": "CSID2",
+            "key": "CSID3"}
 elif machine().startswith("arm"):
     import RPi.GPIO as GPIO
     GPIO.setmode(GPIO.BOARD)
@@ -40,18 +43,21 @@ def quit(signum, frame):
 def hasAccess(cuid):
     try:
         # /acls/ must only be accessible by the door client
-        aclr = requests.get("https://space.bo.x0.rs/acls/hm.json")
+        aclr = requests.get("https://space.bo.x0.rs/acls/hm.json", timeout=2)
         aclr = (aclr.ok, aclr)
     except:
         aclr = (False, None)
 
+    acl = None
     if aclr[0]:
-        with open("acldb.json", "w+") as db:
-            # XXX check if valid json first, we don't want garbage
-            db.write(aclr[1].text)
-        acl = aclr[1].json()
-    else:
-        print("Request failed")
+        try:
+            acl = aclr[1].json()
+            with open("acldb.json", "w+") as db:
+                db.write(aclr[1].text)
+        except:
+            pass
+    if acl is None:
+        print("Request failed, falling back on cache")
         acl = jsondb(open("acldb.json"))
 
     if cuid in acl.keys():
@@ -66,26 +72,44 @@ def sesame(decision):
             GPIO.output(PINS["door"], value)
             GPIO.output(PINS["green"], value)
             if value:
-                sleep(3)
-    else:
-        print("Denied")
-        for value in (GPIO.HIGH, GPIO.LOW):
-            GPIO.output(PINS["red"], value)
-            if value:
-                sleep(3)
+                sleep(5)
+        return
+    print("Denied")
+    for value in (GPIO.HIGH, GPIO.LOW):
+        GPIO.output(PINS["red"], value)
+        if value:
+            sleep(5)
 
-signal.signal(signal.SIGINT, quit)
+def deadbolt():
+    changed = False
+    while True:
+        opened = GPIO.input(PINS["key"])
+        if opened and not changed:
+            sesame(True)
+            changed = True
+        elif not opened and changed:
+            changed = False
+        sleep(0.5)
 
-for value in PINS.values():
-    GPIO.setup(value, GPIO.OUT)
+def main():
+    signal.signal(signal.SIGINT, quit)
 
-attempt = 0
+    for value in PINS.values():
+        GPIO.setup(value, GPIO.OUT)
+    GPIO.setup(PINS["key"], GPIO.IN)
 
-while True:
-    cuid = input()
+    attempt = 0
 
-    # Make sure we discard attempts
-    now = time()
-    if now - attempt > 6:
-        sesame(len(cuid) == 10 and cuid.isdigit() and hasAccess(cuid))
-        attempt = now
+    Thread(target = deadbolt).start()
+
+    while True:
+        cuid = input()
+
+        # Make sure we discard attempts
+        now = time()
+        if now - attempt > 6:
+            sesame(len(cuid) == 10 and cuid.isdigit() and hasAccess(cuid))
+            attempt = now
+
+if __name__ == "__main__":
+    main()
