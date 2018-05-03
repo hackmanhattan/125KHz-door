@@ -29,6 +29,12 @@ GPIO = Dummy("GPIO")
 
 if machine().startswith("arm") and "ntc" in platform():
     import CHIP_IO.GPIO as GPIO
+elif machine().startswith("arm") and "bone" in platform():
+    import Adafruit_BBIO.GPIO as GPIO
+    PINS = {"door": "P8_14",
+            "green": "P8_15",
+            "red": "P8_16",
+            "key": "P8_17"}
 elif machine().startswith("arm"):
     import RPi.GPIO as GPIO
     GPIO.setmode(GPIO.BOARD)
