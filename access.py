@@ -25,6 +25,9 @@ PINS = {"door": "CSID0",
 if "125KHZ_ACL" not in env:
     env["125KHZ_ACL"] = "https://space.bo.x0.rs/acls/hm.json"
 
+if "125KHZ_TIME" not in env:
+    env["125KHZ_TIME"] = "5"
+
 GPIO = Dummy("GPIO")
 
 if machine().startswith("arm") and "ntc" in platform():
@@ -93,14 +96,14 @@ def sesame(decision):
             if "125KHZ_NO_LED" not in env:
                 GPIO.output(PINS["green"], value)
             if value:
-                sleep(5)
+                sleep(float(env["125KHZ_TIME"]))
         return
     print("Denied")
     if "125KHZ_NO_LED" not in env:
         for value in (GPIO.HIGH, GPIO.LOW):
             GPIO.output(PINS["red"], value)
             if value:
-                sleep(5)
+                sleep(float(env["125KHZ_TIME"]))
 
 def deadbolt():
     changed = False
