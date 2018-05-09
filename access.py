@@ -4,7 +4,7 @@ from sys import exit
 from json import load as jsondb
 from time import sleep, time
 from platform import machine, platform
-from threading import Thread
+from threading import Thread, Lock
 from os import environ as env
 
 class Dummy(object):
@@ -16,11 +16,10 @@ class Dummy(object):
             return 0 if attr == "LOW" else 1
         return lambda *args: print("{}.{}: {}"
                                    .format(self.name, attr,repr(args)))
-
-PINS = {"door": "CSID0",
-        "green": "CSID1",
-        "red": "CSID2",
-        "key": "CSID3"}
+PINS = {"door": "P8_14",
+        "green": "P8_15",
+        "red": "P8_16",
+        "key": "P8_17"}
 
 if "125KHZ_ACL" not in env:
     env["125KHZ_ACL"] = "https://space.bo.x0.rs/acls/hm.json"
@@ -30,14 +29,14 @@ if "125KHZ_TIME" not in env:
 
 GPIO = Dummy("GPIO")
 
-if machine().startswith("arm") and "ntc" in platform():
-    import CHIP_IO.GPIO as GPIO
-elif machine().startswith("arm") and "bone" in platform():
+if machine().startswith("arm") and "bone" in platform():
     import Adafruit_BBIO.GPIO as GPIO
-    PINS = {"door": "P8_14",
-            "green": "P8_15",
-            "red": "P8_16",
-            "key": "P8_17"}
+elif machine().startswith("arm") and "ntc" in platform():
+    import CHIP_IO.GPIO as GPIO
+    PINS = {"door": "CSID0",
+            "green": "CSID1",
+            "red": "CSID2",
+            "key": "CSID3"}
 elif machine().startswith("arm"):
     import RPi.GPIO as GPIO
     GPIO.setmode(GPIO.BOARD)
@@ -47,6 +46,8 @@ elif machine().startswith("arm"):
         "red": 10,
         "key": 11
     }
+else:
+    env["125KHZ_ACL"] = "https://space.bo.x0.rs/acls/dev.json"
 
 if "125KHZ_NO_DEADBOLT" in env:
     PINS.pop("key")
@@ -63,25 +64,57 @@ def quit(signum, frame):
     print()
     exit()
 
-def hasAccess(cuid):
-    try:
-        # /acls/ must only be accessible by the door client
-        aclr = requests.get(env["125KHZ_ACL"], timeout=2)
-        aclr = (aclr.ok, aclr)
-    except:
-        aclr = (False, None)
+fileio, networkio = Lock(), Lock()
 
+class Download(Thread):
+    def __init__(self):
+        Thread.__init__(self)
+        self.daemon = True
+        self.now = False
+        self.acl = None
+
+    def run(self):
+        while True:
+            while not self.now:
+                sleep(0.2)
+            self.acl = None
+            self.now = False
+            try:
+                networkio.acquire()
+                aclr = requests.get(env["125KHZ_ACL"])
+                networkio.release()
+                self.acl = aclr.json()
+                while fileio.locked():
+                    continue
+                fileio.acquire()
+                with open(env["125KHZ_JSONDB"], "w+") as db:
+                    db.write(aclr.text)
+                fileio.release()
+            except:
+                self.acl = None
+
+def hasAccess(cuid, download):
     acl = None
-    if aclr[0]:
-        try:
-            acl = aclr[1].json()
-            with open(env["125KHZ_JSONDB"], "w+") as db:
-                db.write(aclr[1].text)
-        except:
-            pass
+
+    download.now = True
+    while not networkio.locked():
+        continue
+    timeout = time() + 2
+    while networkio.locked() and time() < timeout:
+        continue
+
+    if not networkio.locked():
+        sleep(0.1)
+
+    acl = download.acl
+
     if acl is None:
-        print("Request failed, falling back on cache")
+        print("Request failed, falling back on async cache")
+        while fileio.locked():
+            continue
+        fileio.acquire()
         acl = jsondb(open(env["125KHZ_JSONDB"]))
+        fileio.release()
 
     if cuid in acl.keys():
         return True
@@ -125,7 +158,12 @@ def main():
 
     if "125KHZ_NO_DEADBOLT" not in env:
         GPIO.setup(PINS["key"], GPIO.IN)
-        Thread(target = deadbolt).start()
+        sensor = Thread(target = deadbolt)
+        sensor.daemon = True
+        sensor.start()
+
+    db = Download()
+    db.start()
 
     attempt = 0
 
@@ -135,7 +173,7 @@ def main():
         # Make sure we discard attempts
         now = time()
         if now - attempt > 6:
-            sesame(len(cuid) == 10 and cuid.isdigit() and hasAccess(cuid))
+            sesame(len(cuid) == 10 and cuid.isdigit() and hasAccess(cuid, db))
             attempt = now
 
 if __name__ == "__main__":
