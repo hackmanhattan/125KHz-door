@@ -87,6 +87,8 @@ class Download(Thread):
                 networkio.acquire()
                 aclr = requests.get(env["125KHZ_ACL"], headers=rheaders)
                 networkio.release()
+                if aclr.status_code != 200:
+                    raise Exception("HTTP {}".format(aclr.status_code))
                 self.acl = aclr.json()
                 while fileio.locked():
                     continue
