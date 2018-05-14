@@ -22,10 +22,14 @@ PINS = {"door": "P8_14",
         "key": "P8_17"}
 
 if "125KHZ_ACL" not in env:
-    env["125KHZ_ACL"] = "https://space.bo.x0.rs/acls/hm.json"
+    env["125KHZ_ACL"] = "https://spacy.hackmanhattan.com/cards/json/1"
 
 if "125KHZ_TIME" not in env:
     env["125KHZ_TIME"] = "5"
+
+rheaders = {}
+if "125KHZ_AUTH" in env:
+    rheaders["Authorization"] = "Bearer " + env["125KHZ_AUTH"]
 
 GPIO = Dummy("GPIO")
 
@@ -81,7 +85,7 @@ class Download(Thread):
             self.now = False
             try:
                 networkio.acquire()
-                aclr = requests.get(env["125KHZ_ACL"])
+                aclr = requests.get(env["125KHZ_ACL"], headers=rheaders)
                 networkio.release()
                 self.acl = aclr.json()
                 while fileio.locked():

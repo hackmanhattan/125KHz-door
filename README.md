@@ -34,7 +34,9 @@ Optional:
 ## Configuration (environment variables)
 
 * `125KHZ_ACL`: provide URI to access control list (see next section). Default:
-  `https://space.bo.x0.rs/acls/hm.json`
+  `https://spacy.hackmanhattan.com/cards/json/1`
+* `125KHZ_AUTH`: secret token for `Authorization: Bearer $125KHZ_AUTH` headers.
+   Default: not present.
 * `125KHZ_JSONDB`: provides path for where the json database is stored.
    Default: `/opt/125kHz-door/acldb.json`, `acldb.json` for "debug" mode
 * `125KHZ_TIME`: how long the relay to open the door is turned on. Default: 5
