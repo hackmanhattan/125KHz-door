@@ -5,7 +5,7 @@ Requirements:
 * [BeagleBone Black](https://beagleboard.org/black) /
   [CHIP](http://getchip.com/) / [Raspberry Pi](https://www.raspberrypi.org/)
 * [USB HID (keyboard) 125kHz RFID reader](https://www.amazon.com/Reader-LANMU-125khz-Contactless-Proximity/dp/B07B7H6CQ2/)
-* Python 3, `[requests](http://python-requests.org/)` &
+* Python 3, [`requests`](http://python-requests.org/) &
   [Adafruit_BBIO.GPIO](https://github.com/adafruit/adafruit-beaglebone-io-python) /
   [CHIP_IO.GPIO](https://github.com/xtacocorex/CHIP_IO/) /
   [RPi.GPIO](https://pypi.org/project/RPi.GPIO/)
