@@ -27,6 +27,9 @@ if "125KHZ_ACL" not in env:
 if "125KHZ_TIME" not in env:
     env["125KHZ_TIME"] = "5"
 
+if "125KHZ_CACHE" not in env:
+    env["125KHZ_CACHE"] = "0.75"
+
 rheaders = {}
 if "125KHZ_AUTH" in env:
     rheaders["Authorization"] = "Bearer " + env["125KHZ_AUTH"]
@@ -105,7 +108,7 @@ def hasAccess(cuid, download):
     download.now = True
     while not networkio.locked():
         continue
-    timeout = time() + 2
+    timeout = time() + float(env["125KHZ_CACHE"])
     while networkio.locked() and time() < timeout:
         continue
 

@@ -22,8 +22,9 @@ Optional:
 
 ## Setup
 
-* Put `override.conf` in `/etc/systemd/system/getty@tty1.service.d/override.conf`
-  and add the appropriate environment variables if you want to override default
+* Put `override.conf` in
+  `/etc/systemd/system/getty@tty1.service.d/override.conf` and add the
+  appropriate environment variables if you want to override default
   configuration
 * `access.py` in `/opt/125kHz-door/`
 * See `access.py` source for wiring. (Yes I'm lazy, it's for 3 different
@@ -33,16 +34,18 @@ Optional:
 
 ## Configuration (environment variables)
 
-* `125KHZ_ACL`: provide URI to access control list (see next section). Default:
-  `https://spacy.hackmanhattan.com/cards/json/1`
-* `125KHZ_AUTH`: secret token for `Authorization: Bearer $125KHZ_AUTH` headers.
-   Default: not present.
+* `125KHZ_ACL`: provide URI to access control list (see next section).
+  Default: `https://spacy.hackmanhattan.com/cards/json/1`
+* `125KHZ_AUTH`: secret token for `Authorization: Bearer $125KHZ_AUTH`
+  headers. Default: not present.
 * `125KHZ_JSONDB`: provides path for where the json database is stored.
-   Default: `/opt/125kHz-door/acldb.json`, `acldb.json` for "debug" mode
+  Default: `/opt/125kHz-door/acldb.json`, `acldb.json` for "debug" mode
 * `125KHZ_TIME`: how long the relay to open the door is turned on. Default: 5
   seconds
+* `125KHZ_CACHE`: how long to wait for the HTTPS request to finish until
+  falling back onto cache. Default: 0.75
 * `125KHZ_NO_DEADBOLT`: if present it disables legacy access support. Default:
-   not present.
+  not present.
 * `125KHZ_NO_LED`: if present it disables green/red LEDs for status reports.
   Default: not present.
 
