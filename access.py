@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-import signal, requests
+import signal, subprocess
 from sys import exit
 from json import load as jsondb
+from json import loads as jsons
 from time import sleep, time
 from platform import machine, platform
 from threading import Thread, Lock
@@ -88,18 +89,24 @@ class Download(Thread):
             self.now = False
             try:
                 networkio.acquire()
-                aclr = requests.get(env["125KHZ_ACL"], headers=rheaders)
+                command = ["curl", "-H",
+                           "Authorization: Bearer " + env["125KHZ_AUTH"],
+                           env["125KHZ_ACL"]]
+                aclr = subprocess.Popen(command, stdout=subprocess.PIPE,
+                                        stderr=subprocess.PIPE).stdout.read()
+                aclr = aclr.decode("utf-8")
                 networkio.release()
-                if aclr.status_code != 200:
-                    raise Exception("HTTP {}".format(aclr.status_code))
-                self.acl = aclr.json()
+                self.acl = jsons(aclr)
                 while fileio.locked():
                     continue
                 fileio.acquire()
                 with open(env["125KHZ_JSONDB"], "w+") as db:
-                    db.write(aclr.text)
+                    db.write(aclr)
                 fileio.release()
             except:
+                for lock in (networkio, fileio):
+                    if lock.locked():
+                        lock.release()
                 self.acl = None
 
 def hasAccess(cuid, download):
