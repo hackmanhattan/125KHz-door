@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-import signal, subprocess
+import signal, requests
 from sys import exit
 from json import load as jsondb
-from json import loads as jsons
 from time import sleep, time
 from platform import machine, platform
 from threading import Thread, Lock
+from queue import Queue
 from os import environ as env
 
 class Dummy(object):
@@ -21,9 +21,6 @@ PINS = {"door": "P8_14",
         "green": "P8_15",
         "red": "P8_16",
         "key": "P8_17"}
-
-if "125KHZ_ACL" not in env:
-    env["125KHZ_ACL"] = "https://spacy.hackmanhattan.com/cards/json/1"
 
 if "125KHZ_TIME" not in env:
     env["125KHZ_TIME"] = "5"
@@ -54,8 +51,11 @@ elif machine().startswith("arm"):
         "red": 10,
         "key": 11
     }
-else:
+elif "125KHZ_ACL" not in env:
     env["125KHZ_ACL"] = "https://space.bo.x0.rs/acls/dev.json"
+
+if "125KHZ_ACL" not in env:
+    env["125KHZ_ACL"] = "https://spacy.hackmanhattan.com/cards/json/1"
 
 if "125KHZ_NO_DEADBOLT" in env:
     PINS.pop("key")
@@ -72,65 +72,46 @@ def quit(signum, frame):
     print()
     exit()
 
-fileio, networkio = Lock(), Lock()
+fileio = Lock()
 
 class Download(Thread):
     def __init__(self):
         Thread.__init__(self)
         self.daemon = True
-        self.now = False
-        self.acl = None
+        self.reqs = Queue()
+        self.resps = Queue()
 
     def run(self):
         while True:
-            while not self.now:
-                sleep(0.2)
-            self.acl = None
-            self.now = False
             try:
-                networkio.acquire()
-                command = ["curl", "-H",
-                           "Authorization: Bearer " + env["125KHZ_AUTH"],
-                           env["125KHZ_ACL"]]
-                aclr = subprocess.Popen(command, stdout=subprocess.PIPE,
-                                        stderr=subprocess.PIPE).stdout.read()
-                aclr = aclr.decode("utf-8")
-                networkio.release()
-                self.acl = jsons(aclr)
-                while fileio.locked():
-                    continue
+                request = self.reqs.get()
+                aclr = request()
+                self.resps.put(aclr.json())
                 fileio.acquire()
-                with open(env["125KHZ_JSONDB"], "w+") as db:
-                    db.write(aclr)
+                with open(env["125KHZ_JSONDB"], "w+") as cache:
+                    cache.write(aclr.text)
                 fileio.release()
-            except:
-                for lock in (networkio, fileio):
-                    if lock.locked():
-                        lock.release()
-                self.acl = None
+            except Exception as e:
+                print("Oh noes: {}".format(e))
 
-def hasAccess(cuid, download):
+def hasAccess(cuid, dwnlt):
     acl = None
 
-    download.now = True
-    while not networkio.locked():
-        continue
+    dwnlt.reqs.put(lambda: requests.get(env["125KHZ_ACL"], headers=rheaders))
     timeout = time() + float(env["125KHZ_CACHE"])
-    while networkio.locked() and time() < timeout:
-        continue
-
-    if not networkio.locked():
+    while dwnlt.resps.empty() and time() < timeout:
         sleep(0.1)
 
-    acl = download.acl
-
-    if acl is None:
+    if dwnlt.resps.empty():
         print("Request failed, falling back on async cache")
-        while fileio.locked():
-            continue
         fileio.acquire()
-        acl = jsondb(open(env["125KHZ_JSONDB"]))
+        with open(env["125KHZ_JSONDB"]) as cache:
+            acl = jsondb(cache)
         fileio.release()
+        # Because the download was too slow, we discard the queue entry
+        Thread(target=lambda: dwnlt.resps.get()).start()
+    else:
+        acl = dwnlt.resps.get()
 
     if cuid in acl.keys():
         return True
