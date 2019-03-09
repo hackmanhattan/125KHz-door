@@ -17,10 +17,10 @@ class Dummy(object):
             return 0 if attr == "LOW" else 1
         return lambda *args: print("{}.{}: {}"
                                    .format(self.name, attr,repr(args)))
-PINS = {"door": "P8_14",
-        "green": "P8_15",
-        "red": "P8_16",
-        "key": "P8_17"}
+PINS = {"door": "P8_8",
+        "green": "P8_10",
+        "red": "P8_12",
+        "key": "P8_14"}
 
 if "125KHZ_TIME" not in env:
     env["125KHZ_TIME"] = "5"
