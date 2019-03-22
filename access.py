@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import signal, requests
+import signal, requests, evdev
 from sys import exit
 from json import load as jsondb
 from time import sleep, time
@@ -22,15 +22,20 @@ PINS = {"door": "P8_8",
         "red": "P8_12",
         "key": "P8_14"}
 
-if "125KHZ_TIME" not in env:
-    env["125KHZ_TIME"] = "5"
+if "KHZ125_READER" not in env:
+    env["KHZ125_READER"] = "/dev/input/by-id/usb-Sycreader_RFID" \
+                           "_Technology_Co.__Ltd_SYC_ID_IC_USB_Reader_" \
+                           "08FF20140315-event-kbd"
 
-if "125KHZ_CACHE" not in env:
-    env["125KHZ_CACHE"] = "0.75"
+if "KHZ125_TIME" not in env:
+    env["KHZ125_TIME"] = "5"
+
+if "KHZ125_CACHE" not in env:
+    env["KHZ125_CACHE"] = "0.75"
 
 rheaders = {}
-if "125KHZ_AUTH" in env:
-    rheaders["Authorization"] = "Bearer " + env["125KHZ_AUTH"]
+if "KHZ125_AUTH" in env:
+    rheaders["Authorization"] = "Bearer " + env["KHZ125_AUTH"]
 
 GPIO = Dummy("GPIO")
 
@@ -51,25 +56,26 @@ elif machine().startswith("arm"):
         "red": 10,
         "key": 11
     }
-elif "125KHZ_ACL" not in env:
-    env["125KHZ_ACL"] = "https://space.bo.x0.rs/acls/dev.json"
+elif "KHZ125_ACL" not in env:
+    env["KHZ125_ACL"] = "https://space.bo.x0.rs/acls/dev.json"
 
-if "125KHZ_ACL" not in env:
-    env["125KHZ_ACL"] = "https://spacy.hackmanhattan.com/cards/json/1"
+if "KHZ125_ACL" not in env:
+    env["KHZ125_ACL"] = "https://spacy.hackmanhattan.com/cards/json/1"
 
-if "125KHZ_NO_DEADBOLT" in env:
+if "KHZ125_NO_DEADBOLT" in env:
     PINS.pop("key")
-if "125KHZ_NO_LED" in env:
+if "KHZ125_NO_LED" in env:
     [PINS.pop(k) for k in ["green", "red"]]
 
-if len(GPIO.__dict__) == 1 and "125KHZ_JSONDB" not in env:
-    env["125KHZ_JSONDB"] = "acldb.json"
-elif "125KHZ_JSONDB" not in env:
-    env["125KHZ_JSONDB"] = "/opt/125kHz-door/acldb.json"
+if len(GPIO.__dict__) == 1 and "KHZ125_JSONDB" not in env:
+    env["KHZ125_JSONDB"] = "acldb.json"
+elif "KHZ125_JSONDB" not in env:
+    env["KHZ125_JSONDB"] = "/opt/125kHz-door/acldb.json"
 
 def quit(signum, frame):
+    READER.ungrab()
     GPIO.cleanup()
-    print()
+    print("Bye")
     exit()
 
 fileio = Lock()
@@ -88,7 +94,7 @@ class Download(Thread):
                 aclr = request()
                 self.resps.put(aclr.json())
                 fileio.acquire()
-                with open(env["125KHZ_JSONDB"], "w+") as cache:
+                with open(env["KHZ125_JSONDB"], "w+") as cache:
                     cache.write(aclr.text)
                 fileio.release()
             except Exception as e:
@@ -97,15 +103,15 @@ class Download(Thread):
 def hasAccess(cuid, dwnlt):
     acl = None
 
-    dwnlt.reqs.put(lambda: requests.get(env["125KHZ_ACL"], headers=rheaders))
-    timeout = time() + float(env["125KHZ_CACHE"])
+    dwnlt.reqs.put(lambda: requests.get(env["KHZ125_ACL"], headers=rheaders))
+    timeout = time() + float(env["KHZ125_CACHE"])
     while dwnlt.resps.empty() and time() < timeout:
         sleep(0.1)
 
     if dwnlt.resps.empty():
         print("Request failed, falling back on async cache")
         fileio.acquire()
-        with open(env["125KHZ_JSONDB"]) as cache:
+        with open(env["KHZ125_JSONDB"]) as cache:
             acl = jsondb(cache)
         fileio.release()
         # Because the download was too slow, we discard the queue entry
@@ -123,17 +129,17 @@ def sesame(decision):
         print("Granted")
         for value in (GPIO.HIGH, GPIO.LOW):
             GPIO.output(PINS["door"], value)
-            if "125KHZ_NO_LED" not in env:
+            if "KHZ125_NO_LED" not in env:
                 GPIO.output(PINS["green"], value)
             if value:
-                sleep(float(env["125KHZ_TIME"]))
+                sleep(float(env["KHZ125_TIME"]))
         return
     print("Denied")
-    if "125KHZ_NO_LED" not in env:
+    if "KHZ125_NO_LED" not in env:
         for value in (GPIO.HIGH, GPIO.LOW):
             GPIO.output(PINS["red"], value)
             if value:
-                sleep(float(env["125KHZ_TIME"]))
+                sleep(float(env["KHZ125_TIME"]))
 
 def deadbolt():
     changed = False
@@ -148,12 +154,26 @@ def deadbolt():
         sleep(0.5)
 
 def main():
+    try:
+        device = evdev.InputDevice(env["KHZ125_READER"])
+    except PermissionError:
+        print("Insufficent permissions, run me as root!")
+        exit(1)
+
+    device.grab()
+
+    def quit(signum, frame):
+        device.ungrab()
+        GPIO.cleanup()
+        print("Bye")
+        exit()
+
     signal.signal(signal.SIGINT, quit)
 
     for value in PINS.values():
         GPIO.setup(value, GPIO.OUT)
 
-    if "125KHZ_NO_DEADBOLT" not in env:
+    if "KHZ125_NO_DEADBOLT" not in env:
         GPIO.setup(PINS["key"], GPIO.IN)
         sensor = Thread(target = deadbolt)
         sensor.daemon = True
@@ -164,14 +184,24 @@ def main():
 
     attempt = 0
 
-    while True:
-        cuid = input()
+    cuid = ""
 
-        # Make sure we discard attempts
-        now = time()
-        if now - attempt > 6:
-            sesame(len(cuid) == 10 and cuid.isdigit() and hasAccess(cuid, db))
-            attempt = now
+    for event in device.read_loop():
+        if event.type == evdev.ecodes.EV_KEY and event.value == 1:
+            e_code = event.code - 1
+            if e_code >= 1 and e_code <= 10:
+                if e_code == 10:
+                    cuid += str(0)
+                else:
+                    cuid += str(e_code)
+            elif e_code == 27: # enter minus one
+                now = time()
+
+                if now - attempt > 6:
+                    sesame(len(cuid) == 10 and cuid.isdigit() and hasAccess(cuid, db))
+                    attempt = now
+
+                cuid = ""
 
 if __name__ == "__main__":
     main()

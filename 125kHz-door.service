@@ -1,0 +1,12 @@
+[Unit]
+Description=125kHz RFID access
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/125kHz-door/
+EnvironmentFile=/opt/125kHz-door/envs
+ExecStart=/opt/125kHz-door/access.py
+
+[Install]
+WantedBy=multi-user.target

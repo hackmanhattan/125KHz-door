@@ -22,32 +22,32 @@ Optional:
 
 ## Setup
 
-* Put `override.conf` in
-  `/etc/systemd/system/getty@tty1.service.d/override.conf` and add the
-  appropriate environment variables if you want to override default
-  configuration
-* `access.py` in `/opt/125kHz-door/`
+* Place this repo in `/opt/125kHz-door/`
+* Put the `125kHz-door.service` in `/etc/systemd/system/`
+* Add the appropriate environment variables to `/opt/125kHz-door/envs` if you
+  want to override default configuration
 * See `access.py` source for wiring. (Yes I'm lazy, it's for 3 different
   boards!)
-* Make sure `125KHZ_ACL` URI isn't readable by any IP other than the keyless
+* Make sure `KHZ125_ACL` URI isn't readable by any IP other than the keyless
   access device
 
 ## Configuration (environment variables)
 
-* `125KHZ_ACL`: provide URI to access control list (see next section).
+* `KHZ125_ACL`: provide URI to access control list (see next section).
   Default: `https://spacy.hackmanhattan.com/cards/json/1`
-* `125KHZ_AUTH`: secret token for `Authorization: Bearer $125KHZ_AUTH`
+* `KHZ125_AUTH`: secret token for `Authorization: Bearer $KHZ125_AUTH`
   headers. Default: not present.
-* `125KHZ_JSONDB`: provides path for where the json database is stored.
+* `KHZ125_JSONDB`: provides path for where the json database is stored.
   Default: `/opt/125kHz-door/acldb.json`, `acldb.json` for "debug" mode
-* `125KHZ_TIME`: how long the relay to open the door is turned on. Default: 5
+* `KHZ125_TIME`: how long the relay to open the door is turned on. Default: 5
   seconds
-* `125KHZ_CACHE`: how long to wait for the HTTPS request to finish until
+* `KHZ125_CACHE`: how long to wait for the HTTPS request to finish until
   falling back onto cache. Default: 0.75
-* `125KHZ_NO_DEADBOLT`: if present it disables legacy access support. Default:
+* `KHZ125_NO_DEADBOLT`: if present it disables legacy access support. Default:
   not present.
-* `125KHZ_NO_LED`: if present it disables green/red LEDs for status reports.
+* `KHZ125_NO_LED`: if present it disables green/red LEDs for status reports.
   Default: not present.
+* `KHZ125_READER`: device path to the HID RFID reader
 
 ## `acldb.json` Format
 
