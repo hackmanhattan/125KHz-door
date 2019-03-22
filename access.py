@@ -7,6 +7,7 @@ from platform import machine, platform
 from threading import Thread, Lock
 from queue import Queue
 from os import environ as env
+from os.path import exists
 
 class Dummy(object):
     def __init__(self, name):
@@ -71,12 +72,6 @@ if len(GPIO.__dict__) == 1 and "KHZ125_JSONDB" not in env:
     env["KHZ125_JSONDB"] = "acldb.json"
 elif "KHZ125_JSONDB" not in env:
     env["KHZ125_JSONDB"] = "/opt/125kHz-door/acldb.json"
-
-def quit(signum, frame):
-    READER.ungrab()
-    GPIO.cleanup()
-    print("Bye")
-    exit()
 
 fileio = Lock()
 
@@ -155,6 +150,8 @@ def deadbolt():
 
 def main():
     try:
+        while not exists(env["KHZ125_READER"]):
+            sleep(1)
         device = evdev.InputDevice(env["KHZ125_READER"])
     except PermissionError:
         print("Insufficent permissions, run me as root!")
