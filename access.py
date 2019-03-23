@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-import signal, requests, evdev
+import signal, subprocess, evdev
 from sys import exit
-from json import load as jsondb
+from json import load as jsondb, loads as jsons
 from time import sleep, time
 from platform import machine, platform
 from threading import Thread, Lock
@@ -33,10 +33,6 @@ if "KHZ125_TIME" not in env:
 
 if "KHZ125_CACHE" not in env:
     env["KHZ125_CACHE"] = "0.75"
-
-rheaders = {}
-if "KHZ125_AUTH" in env:
-    rheaders["Authorization"] = "Bearer " + env["KHZ125_AUTH"]
 
 GPIO = Dummy("GPIO")
 
@@ -87,10 +83,10 @@ class Download(Thread):
             try:
                 request = self.reqs.get()
                 aclr = request()
-                self.resps.put(aclr.json())
+                self.resps.put(jsons(aclr))
                 fileio.acquire()
                 with open(env["KHZ125_JSONDB"], "w+") as cache:
-                    cache.write(aclr.text)
+                    cache.write(aclr)
                 fileio.release()
             except Exception as e:
                 print("Oh noes: {}".format(e))
@@ -98,7 +94,18 @@ class Download(Thread):
 def hasAccess(cuid, dwnlt):
     acl = None
 
-    dwnlt.reqs.put(lambda: requests.get(env["KHZ125_ACL"], headers=rheaders))
+    # I feel conflicted about using curl here, but we keep having issues with
+    # the requests library in a thread, where it locks up and the queue just
+    # keeps growing
+    cmd = ["curl", env["KHZ125_ACL"]]
+
+    if "KHZ125_AUTH" in env:
+        cmd[1:1] = ["-H", "Authorization: Bearer " + env["KHZ125_AUTH"]]
+
+    print(cmd)
+    dwnlt.reqs.put(lambda: subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                            stderr=subprocess.PIPE)
+                                     .stdout.read().decode("utf-8"))
     timeout = time() + float(env["KHZ125_CACHE"])
     while dwnlt.resps.empty() and time() < timeout:
         sleep(0.1)
@@ -195,7 +202,8 @@ def main():
                 now = time()
 
                 if now - attempt > 6:
-                    sesame(len(cuid) == 10 and cuid.isdigit() and hasAccess(cuid, db))
+                    sesame(len(cuid) == 10 and cuid.isdigit() and
+                           hasAccess(cuid, db))
                     attempt = now
 
                 cuid = ""
