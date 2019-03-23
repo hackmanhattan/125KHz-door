@@ -5,31 +5,38 @@ Requirements:
 * [BeagleBone Black](https://beagleboard.org/black) /
   [CHIP](http://getchip.com/) / [Raspberry Pi](https://www.raspberrypi.org/)
 * [USB HID (keyboard) 125kHz RFID reader](https://www.amazon.com/Reader-LANMU-125khz-Contactless-Proximity/dp/B07B7H6CQ2/)
-* Python 3 &
+* Python 3 & `curl` &
+  [evdev](https://pypi.org/project/evdev/) &
   [Adafruit_BBIO.GPIO](https://github.com/adafruit/adafruit-beaglebone-io-python) /
   [CHIP_IO.GPIO](https://github.com/xtacocorex/CHIP_IO/) /
   [RPi.GPIO](https://pypi.org/project/RPi.GPIO/)
 * Relay / Optocoupler to connect to an electric strike other other door-opening
   mechanism
 * A working internet connection for bootstrapping
-* systemd (sorry not sorry)
 
 Optional:
 
+* systemd
 * 1 green & 1 red LED and the appropriate resistors
 * Deadbolt/key sensor for (non-RFID) legacy access
   ([ours](https://www.amazon.com/gp/product/B01I57HIJ0/))
 
 ## Setup
 
+When using systemd:
+
 * Place this repo in `/opt/125kHz-door/`
-* Put the `125kHz-door.service` in `/etc/systemd/system/`
+* Put the `125kHz-door.service` in `/etc/systemd/system/`, run
+  `systemctl daemon-reload` and `systemctl enable 125kHz-door.service`
 * Add the appropriate environment variables to `/opt/125kHz-door/envs` if you
-  want to override default configuration
+  want to override the default configuration
 * See `access.py` source for wiring. (Yes I'm lazy, it's for 3 different
   boards!)
 * Make sure `KHZ125_ACL` URI isn't readable by any IP other than the keyless
   access device
+
+When not using systemd: you should be able to deduce what to do for your init
+system/replacement.
 
 ## Configuration (environment variables)
 
