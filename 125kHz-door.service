@@ -7,6 +7,8 @@ Type=simple
 WorkingDirectory=/opt/125kHz-door/
 EnvironmentFile=/opt/125kHz-door/envs
 ExecStart=/opt/125kHz-door/access.py
+Restart=always
+RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
