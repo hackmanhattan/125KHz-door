@@ -8,6 +8,7 @@ from threading import Thread, Lock
 from queue import Queue
 from os import environ as env
 from os.path import exists
+from datetime import datetime
 
 class Dummy(object):
     def __init__(self, name):
@@ -122,6 +123,7 @@ def hasAccess(cuid, dwnlt):
         acl = dwnlt.resps.get()
 
     if cuid in acl.keys():
+        print("[{:%Y-%m-%d %H:%M}] {}".format(datetime.now(), acl[cuid]))
         return True
 
     return False
